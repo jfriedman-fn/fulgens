@@ -15,13 +15,16 @@ from gitlab.v4.objects.merge_requests import MergeRequest as GLMergeRequest
 
 
 CONF_PATH = pathlib.Path().home().joinpath(".config/fulgens")
-
+GITLAB_TOKEN = None
 
 
 def set_token() -> None:
-    config_file_path = CONF_PATH.joinpath("config.json")
-    token = getpass("Your gitlab personal token: ")
+    if GITLAB_TOKEN is None:
+        token = getpass("Your gitlab personal token: ")
+    else:
+        token = GITLAB_TOKEN
 
+    config_file_path = CONF_PATH.joinpath("config.json")
     try:
         with open(config_file_path) as inf:
             config = json.load(inf)
@@ -44,12 +47,17 @@ def set_token() -> None:
 
 
 def get_token() -> Optional[str]:
-    config_file_path = CONF_PATH.joinpath("config.json")
-    try:
-        with open(config_file_path) as inf:
-            return json.load(inf)["gitlab_token"]
-    except FileNotFoundError:
-        return None
+    token = GITLAB_TOKEN
+
+    if token is None:
+        config_file_path = CONF_PATH.joinpath("config.json")
+        try:
+            with open(config_file_path) as inf:
+                token = json.load(inf)["gitlab_token"]
+        except FileNotFoundError:
+            pass
+
+    return token
 
 
 def _get_projects(gl: gitlab.Gitlab) -> List[GLProject]:
@@ -84,8 +92,13 @@ def report_merge_requests(filter: Optional[dict[str, str]]) -> None:
 @click.option(
     "--include-closed", help="Include closed merge requests in filters", is_flag=True
 )
+@click.option("-t", "--token", type=str, help="GitLab private token")
 @click.argument("command", required=True)
-def main(include_closed: bool, command: str) -> None:
+def main(include_closed: bool, token: Optional[str], command: str) -> None:
+    if token is not None:
+        global GITLAB_TOKEN
+        GITLAB_TOKEN = token
+
     if command == "set-token":
         set_token()
     elif command == "report-mrs":
